@@ -95,36 +95,18 @@ function createRedmineIssue(input) {
   }
 }
 
-
-// Hàm chính: ghi nội dung vào cột của hàng đang chọn
-function writeTextToSelectedRow() {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  var range = sheet.getActiveRange(); // Lấy ô được chọn
-  if (!range) {
-    SpreadsheetApp.getUi().alert("Vui lòng chọn một ô trong hàng muốn ghi.");
-    return;
-  }
-
-  var row = range.getRow(); // Lấy số hàng
-  var column = 1; // Ví dụ: ghi vào cột B, bạn có thể thay bằng số cột mong muốn
-  var content = "redmine id hâha";
-
-  sheet.getRange(row, column).setValue(content);
-  SpreadsheetApp.getUi().alert("Đã ghi vào hàng " + row + ", cột " + column);
-}
-
 // Hàm cho menu 'Create Task by selected row'
 function selectedRowCreateRedmineTask() {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  var range = sheet.getActiveRange(); // Lấy ô được chọn
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  const range = sheet.getActiveRange(); // Lấy ô được chọn
   if (!range) {
     SpreadsheetApp.getUi().alert("Vui lòng chọn một ô trong hàng muốn ghi.");
     return;
   }
 
-  var row = range.getRow(); // Lấy số hàng
-  var column = 1; //  Cột Đầu tiên
-  var content = getSelectedRowJsonData();
+  const row = range.getRow(); // Lấy số hàng
+  const column = 1; //  Cột Đầu tiên
+  const content = getSelectedRowJsonData();
   console.log('content', content);
   // check đã có task rồi thì thôi
   if (content && content.RedmineID) {
@@ -137,7 +119,7 @@ function selectedRowCreateRedmineTask() {
     return 1;
   }
   const newTaskSubject = `[${taskId}] ${content.Description}`;
-  var parseInputCreate = {
+  const parseInputCreate = {
     subject: newTaskSubject,
     description: content.Url,
     parent_issue_id: subProjects[content.sub_project],
@@ -152,12 +134,12 @@ function selectedRowCreateRedmineTask() {
   const redmineTask = createRedmineIssue(parseInputCreate);
 
   if (redmineTask && redmineTask?.issue && redmineTask?.issue?.id) {
-    var newTaskId  = redmineTask?.issue?.id;
+    const newTaskId  = redmineTask?.issue?.id;
     sheet.getRange(row, column).setValue(newTaskId);
 
     // create sub Tasks
     
-    var subTaskCodeInput = {
+    const subTaskCodeInput = {
       subject: `[${taskId}] Coding`,
       description: content.Url,
       parent_issue_id: newTaskId,
@@ -170,7 +152,7 @@ function selectedRowCreateRedmineTask() {
     };
     createRedmineIssue(subTaskCodeInput);
 
-    var subTaskTestInput = {
+    const subTaskTestInput = {
       subject: `[${taskId}] Testing`,
       description: content.Url,
       parent_issue_id: newTaskId,
@@ -189,40 +171,23 @@ function selectedRowCreateRedmineTask() {
  
 }
 
-
-function writeJsonToSelectedRow() {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  var range = sheet.getActiveRange(); // Lấy ô được chọn
-  if (!range) {
-    SpreadsheetApp.getUi().alert("Vui lòng chọn một ô trong hàng muốn ghi.");
-    return;
-  }
-
-  var row = range.getRow(); // Lấy số hàng
-  var column = 1; // Ví dụ: ghi vào cột B, bạn có thể thay bằng số cột mong muốn
-  
-  var content = JSON.stringify(getSelectedRowJsonData());
-
-    Logger.log('Payload prepared: ' + JSON.stringify(payload)); 
-
-  sheet.getRange(row, column).setValue(content);
-  SpreadsheetApp.getUi().alert("Đã ghi vào hàng " + row + ", cột " + column);
-}
+// Hàm cho menu 'Close Task by selected row'
+// TODO: Cần implement theo hướng dẫn trong prompt-close.md
+function selectedRowCloseRedmineTask() {}
 
 /*
   GET JSON data from selected row
 */
 function getSelectedRowJsonData() {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  var range = sheet.getActiveRange(); // Lấy ô được chọn
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  const range = sheet.getActiveRange(); // Lấy ô được chọn
   if (!range) {
     SpreadsheetApp.getUi().alert("Vui lòng chọn một ô trong hàng muốn ghi.");
     return;
   }
 
-  var row = range.getRow(); // Lấy số hàng
+  const row = range.getRow(); // Lấy số hàng
   
-
   // Lấy tất cả tiêu đề (header) từ hàng 1
   const lastCol = sheet.getLastColumn();
   const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
@@ -239,158 +204,31 @@ function getSelectedRowJsonData() {
   return payload;
 }
 
+// ============================================================================
+// CÁC HÀM THAM KHẢO (Reference functions for debugging/development)
+// ============================================================================
 
+// Ghi JSON của hàng được chọn vào cột A (dùng để debug/kiểm tra dữ liệu)
+function writeJsonToSelectedRow() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  const range = sheet.getActiveRange(); // Lấy ô được chọn
+  if (!range) {
+    SpreadsheetApp.getUi().alert("Vui lòng chọn một ô trong hàng muốn ghi.");
+    return;
+  }
 
-// Hàm chính ghi text vào ô
+  const row = range.getRow(); // Lấy số hàng
+  const column = 1; // Cột A
+  
+  const content = JSON.stringify(getSelectedRowJsonData());
+  Logger.log('Content: ' + content); 
+
+  sheet.getRange(row, column).setValue(content);
+  SpreadsheetApp.getUi().alert("Đã ghi vào hàng " + row + ", cột " + column);
+}
+
+// Ghi text vào ô bất kỳ theo địa chỉ (ví dụ: "B2")
 function writeText(addressCell, content) {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
   sheet.getRange(addressCell).setValue(content);
-}
-
-// Hàm wrapper cho menu
-function writeTextButton() {
-  writeText("B2", "Hello from Menu!");
-}
-
-/*
-index start from 1
-*/
-function getColumnIndex(letter) {
-  const alphabetArray = ["A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z"];
-  return alphabetArray.indexOf(letter.toUpperCase()) + 1;
-}
-
-// function writeText(addressCell, content) {
-//   // Lấy sheet hiện tại (hoặc thay bằng tên sheet)
-//   var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  
-//   // Ghi content vào ô addressCell (ví dụ "A1")
-//   sheet.getRange(addressCell).setValue(content);
-// }
-// function writeTextButton() {
-//   // Lấy sheet hiện tại
-//   var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  
-//   // Xác định ô cần ghi (ví dụ B2)
-//   var addressCell = "B2";
-  
-//   // Nội dung muốn ghi
-//   var content = "Hello from Button!";
-  
-//   // Ghi vào ô
-//   sheet.getRange(addressCell).setValue(content);
-// }
-
-/**
- * Chức năng Installable OnEdit Trigger.
- * Được kích hoạt khi người dùng chỉnh sửa dữ liệu trong bảng tính.
- * CẦN được cài đặt thủ công trong mục Triggers (Bộ kích hoạt).
- * * @param {object} e Đối tượng sự kiện (Event Object) chứa thông tin về lần chỉnh sửa.
- */
-
-
-function checkAndCallAPI(e) {
-  // --- 1. KHAI BÁO HẰNG SỐ VÀ CẤU HÌNH ---
-  const TARGET_SHEET = 'tasks';
-
-  const TRIGGER_1_COLUMN_INDEX = getColumnIndex('E'); 
-  const TRIGGER_2_COLUMN_INDEX = getColumnIndex('F'); ; // Cột O (A=1, B=2, ..., O=15)
-  const ID_RESULT_COLUMN_INDEX = getColumnIndex('A'); 
-  
-  // THAY THẾ bằng URL API thực tế của hệ thống của bạn
-  const API_URL = 'https://api.your-system.com/create-data'; 
-  
-  // Lấy thông tin từ sự kiện
-  const range = e.range;
-  const sheet = range.getSheet();
-  const row = range.getRow();
-  
-  // Ghi log thời gian và các keys của đối tượng sự kiện
-  Logger.log('Execution Time: ' + new Date());
-  Logger.log('Event Keys: ' + Object.keys(e).join(', '));
-  Logger.log('Row: ' + row + ', Column: ' + range.getColumn() + ', New Value: ' + e.value);
-
-  // --- 2. KIỂM TRA ĐIỀU KIỆN KÍCH HOẠT ---
-
-  // Kiểm tra tên Sheet
-  if (sheet.getName() !== TARGET_SHEET) {
-    Logger.log('Skipping: Not the target sheet (' + TARGET_SHEET + ')');
-    return;
-  }
-  
-  // Kiểm tra cột kích hoạt (Cột O)
-  if (!(range.getColumn() === TRIGGER_2_COLUMN_INDEX && e.value % 2 === 1 && e.value - e.oldValue == 1)) {
-    Logger.log('Skipping: Condition not met' + JSON.stringify({value: e.value, oldValue: e.oldValue, column: range.getColumn()}))
-    return;
-  }
-  
-  const lastCol = sheet.getLastColumn();
-  // Lấy toàn bộ dữ liệu của hàng hiện tại
-  const rowData = sheet.getRange(row, 1, 1, lastCol).getValues()[0];
-  const ver1Value = rowData[TRIGGER_1_COLUMN_INDEX-1];
-  const ver2Value = rowData[TRIGGER_2_COLUMN_INDEX-1];
-  Logger.log('ver1Value: '+ ver1Value+ ' '+ 'ver2Value: '+ ver2Value, rowData);
-  if (ver1Value !== ver2Value) {
-    Logger.log('Skipping: Condition ver1Value != ver2Value');
-    return 1;
-  }
- 
-  // --- 3. LẤY DỮ LIỆU, GỌI API VÀ GHI KẾT QUẢ ---
-  
-  try {
-    // Lấy tất cả tiêu đề (header) từ hàng 1
-    const lastCol = sheet.getLastColumn();
-    const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-    
-    // Lấy toàn bộ dữ liệu của hàng hiện tại
-    const rowData = sheet.getRange(row, 1, 1, lastCol).getValues()[0];
-    
-    // Tạo JSON payload: Dùng tên cột (header) làm key
-    let payload = {};
-    for (let i = 0; i < headers.length; i++) {
-      payload[headers[i]] = rowData[i];
-    }
-
-
-
-    Logger.log('Payload prepared: ' + JSON.stringify(payload)); 
-    return 0;
-    // Cấu hình tham số gọi API
-    const options = {
-      'method': 'post',
-      'contentType': 'application/json',
-      // Quan trọng: Truyền dữ liệu dưới dạng chuỗi JSON
-      'payload': JSON.stringify(payload), 
-      // Bật tùy chọn này để script không crash khi API trả về lỗi (4xx, 5xx)
-      'muteHttpExceptions': true 
-    };
-    console.log('options', options);
-    /*
-    // GỌI API
-    const response = UrlFetchApp.fetch(API_URL, options);
-    const responseCode = response.getResponseCode();
-    const responseText = response.getContentText();
-    
-    // Xử lý lỗi HTTP
-    if (responseCode !== 200 && responseCode !== 201) {
-      Logger.log('API Call Failed. Code: ' + responseCode + ', Response: ' + responseText);
-      sheet.getRange(row, ID_RESULT_COLUMN_INDEX).setValue('API_ERROR ' + responseCode + ': ' + responseText.substring(0, 50));
-      return;
-    }
-    
-    // Xử lý thành công
-    const responseJson = JSON.parse(responseText);
-    
-    // Giả định API trả về ID trong trường 'id'. Thay thế 'id' nếu key khác
-    const newId = responseJson.id || responseJson.ID || 'ID_NOT_FOUND';
-    
-    // Ghi ID vào cột P (ID_RESULT_COLUMN_INDEX)
-    sheet.getRange(row, ID_RESULT_COLUMN_INDEX).setValue(newId);
-    */
-    // Logger.log('API call successful. New ID written to P: ' + newId);
-    
-  } catch (error) {
-    Logger.log('An unexpected error occurred during execution: ' + error.toString());
-    sheet.getRange(row, ID_RESULT_COLUMN_INDEX).setValue('SCRIPT_ERROR: ' + error.toString());
-  }
 }
