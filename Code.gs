@@ -12,7 +12,7 @@ const globalConfig = {
   assigned_to_id: 118,
   tracker_id: 8,
   priority_id: 2,
-  status_id: 11,
+  status_id: 11, // OPEN - sẽ được thay bằng REDMINE_STATUS.OPEN sau khi khai báo constants
   token: '1be2213e8a2f2054bcea2bdee527d71b0f3cfbe5'
 };
 
@@ -24,6 +24,13 @@ const subProjects = {
   "FinanceInJapan": 182973,
  "TossWorks": 182974,
 }
+
+// Redmine Status IDs
+const REDMINE_STATUS = {
+  OPEN: 11,
+  COMPLETED: 7,
+  CLOSED: 5
+};
 
 function convertToDatePlus7(isoString) {
   // Tạo đối tượng Date từ chuỗi ISO (UTC)
@@ -60,7 +67,7 @@ function createRedmineIssue(input) {
       assigned_to_id: globalConfig.assigned_to_id,
       tracker_id: globalConfig.tracker_id,
       priority_id: globalConfig.priority_id,
-      status_id: globalConfig.status_id,
+      status_id: REDMINE_STATUS.OPEN,
       parent_issue_id: input.parent_issue_id || null,
       done_ratio: input.done_ratio ?? 0,
       estimated_hours: input.estimated_hours ?? 0,
@@ -95,6 +102,68 @@ function createRedmineIssue(input) {
   }
 }
 
+/**
+ * Lấy danh sách subtasks của một issue
+ * @param {number} parentIssueId - ID của issue cha
+ * @returns {Array} Mảng các subtasks
+ */
+function getSubtasks(parentIssueId) {
+  const url = `${globalConfig.baseRedmineUrl}/issues.json?parent_id=${parentIssueId}`;
+
+  const options = {
+    method: 'get',
+    contentType: 'application/json',
+    headers: { 'X-Redmine-API-Key': globalConfig.token },
+    muteHttpExceptions: true
+  };
+
+  const response = UrlFetchApp.fetch(url, options);
+  const status = response.getResponseCode();
+  const body = response.getContentText();
+
+  Logger.log(`Get subtasks - Status: ${status}`);
+
+  if (status >= 200 && status < 300) {
+    const data = JSON.parse(body);
+    return data.issues || [];
+  } else {
+    throw new Error(`Redmine API error khi lấy subtasks (${status}): ${body}`);
+  }
+}
+
+/**
+ * Update một issue trên Redmine
+ * @param {number} issueId - ID của issue cần update
+ * @param {Object} updateData - Dữ liệu cần update
+ */
+function updateRedmineIssue(issueId, updateData) {
+  const url = `${globalConfig.baseRedmineUrl}/issues/${issueId}.json`;
+
+  const issueData = {
+    issue: updateData
+  };
+
+  const options = {
+    method: 'put',
+    contentType: 'application/json',
+    headers: { 'X-Redmine-API-Key': globalConfig.token },
+    payload: JSON.stringify(issueData),
+    muteHttpExceptions: true
+  };
+
+  const response = UrlFetchApp.fetch(url, options);
+  const status = response.getResponseCode();
+  const body = response.getContentText();
+
+  Logger.log(`Update issue ${issueId} - Status: ${status}`);
+
+  if (status >= 200 && status < 300) {
+    return true;
+  } else {
+    throw new Error(`Redmine API error khi update issue ${issueId} (${status}): ${body}`);
+  }
+}
+
 // Hàm cho menu 'Create Task by selected row'
 function selectedRowCreateRedmineTask() {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
@@ -108,16 +177,19 @@ function selectedRowCreateRedmineTask() {
   const column = 1; //  Cột Đầu tiên
   const content = getSelectedRowJsonData();
   console.log('content', content);
+  
   // check đã có task rồi thì thôi
   if (content && content.RedmineID) {
-    SpreadsheetApp.getUi().alert("Đã selected row đã có Redmine task");
-    return 0;
+    SpreadsheetApp.getUi().alert("Hàng được chọn đã có Redmine task");
+    return;
   }
+  
   const taskId = content["Task Id"];
   if (undefined === taskId || taskId === "") {
     SpreadsheetApp.getUi().alert("Lỗi khi tạo task ở Redmine: taskId is empty");
-    return 1;
+    return;
   }
+  
   const newTaskSubject = `[${taskId}] ${content.Description}`;
   const parseInputCreate = {
     subject: newTaskSubject,
@@ -168,12 +240,94 @@ function selectedRowCreateRedmineTask() {
   } else {
     SpreadsheetApp.getUi().alert("Lỗi khi tạo task ở Redmine");
   }
- 
 }
 
 // Hàm cho menu 'Close Task by selected row'
-// TODO: Cần implement theo hướng dẫn trong prompt-close.md
-function selectedRowCloseRedmineTask() {}
+function selectedRowCloseRedmineTask() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  const range = sheet.getActiveRange(); // Lấy ô được chọn
+  if (!range) {
+    SpreadsheetApp.getUi().alert("Vui lòng chọn một ô trong hàng muốn đóng task.");
+    return;
+  }
+
+  const content = getSelectedRowJsonData();
+  const redmineId = content.RedmineID;
+
+  // Kiểm tra có RedmineID không
+  if (!redmineId) {
+    SpreadsheetApp.getUi().alert("Hàng được chọn chưa có Redmine task (RedmineID trống)");
+    return;
+  }
+
+  try {
+    // Bước 1: Lấy danh sách subtasks
+    Logger.log(`Đang lấy subtasks của issue ${redmineId}`);
+    const subtasks = getSubtasks(redmineId);
+    
+    if (subtasks.length === 0) {
+      SpreadsheetApp.getUi().alert("Task không có subtasks để đóng");
+      return;
+    }
+
+    Logger.log(`Tìm thấy ${subtasks.length} subtasks`);
+
+    // Bước 2.1: Update từng subtask - Set Completed
+    for (let i = 0; i < subtasks.length; i++) {
+      const subtask = subtasks[i];
+      
+      // Lấy giá trị custom fields hiện tại
+      const actStartField = subtask.custom_fields.find(f => f.id === 10);
+      const actFinishField = subtask.custom_fields.find(f => f.id === 5);
+      
+      const updateData = {
+        done_ratio: 100,
+        status_id: REDMINE_STATUS.COMPLETED,
+        start_date: subtask.start_date || convertToDatePlus7(content["Start date"]),
+        due_date: subtask.due_date || convertToDatePlus7(content["Due date"]),
+        custom_fields: [
+          { id: 10, value: actStartField?.value || convertToDatePlus7(content["Act.Start"]) },
+          { id: 5, value: actFinishField?.value || convertToDatePlus7(content["Act.Finish"]) }
+        ]
+      };
+
+      Logger.log(`Cập nhật subtask ${subtask.id} sang Completed`);
+      updateRedmineIssue(subtask.id, updateData);
+    }
+
+    // Bước 2.2: Update từng subtask - Set Closed
+    for (let i = 0; i < subtasks.length; i++) {
+      const subtask = subtasks[i];
+      
+      const updateData = {
+        status_id: REDMINE_STATUS.CLOSED
+      };
+
+      Logger.log(`Cập nhật subtask ${subtask.id} sang Closed`);
+      updateRedmineIssue(subtask.id, updateData);
+    }
+
+    // Bước 3: Update task cha (parent task) - Set Completed
+    Logger.log(`Cập nhật task cha ${redmineId} sang Completed`);
+    const parentUpdateData = {
+      done_ratio: 100,
+      status_id: REDMINE_STATUS.COMPLETED,
+      start_date: content["Start date"] ? convertToDatePlus7(content["Start date"]) : null,
+      due_date: content["Due date"] ? convertToDatePlus7(content["Due date"]) : null,
+      custom_fields: [
+        { id: 10, value: content["Act.Start"] ? convertToDatePlus7(content["Act.Start"]) : '' },
+        { id: 5, value: content["Act.Finish"] ? convertToDatePlus7(content["Act.Finish"]) : '' }
+      ]
+    };
+    updateRedmineIssue(redmineId, parentUpdateData);
+
+    SpreadsheetApp.getUi().alert(`Đã đóng thành công ${subtasks.length} subtasks và task cha #${redmineId}`);
+    
+  } catch (error) {
+    Logger.log('Lỗi khi đóng task: ' + error.toString());
+    SpreadsheetApp.getUi().alert("Lỗi khi đóng task: " + error.toString());
+  }
+}
 
 /*
   GET JSON data from selected row
