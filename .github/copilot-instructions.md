@@ -87,6 +87,12 @@ The `getSelectedRowJsonData()` function dynamically builds payload from headers 
 
 ## Development Notes
 
+### Code Organization Principles
+- **Always divide and conquer**: Break down complex logic into smaller, manageable pieces
+- **Modularize**: Organize code into logical modules/sections with clear responsibilities
+- **Functionalize**: Extract reusable logic into separate functions rather than duplicating code
+- **Maximize reusability**: Design functions to be generic and reusable across different contexts
+
 ### Error Handling Pattern
 - Use `muteHttpExceptions: true` in `UrlFetchApp.fetch()` options
 - Check response status codes explicitly (200-299 = success)
@@ -106,3 +112,5 @@ The `getSelectedRowJsonData()` function dynamically builds payload from headers 
 - Tasks require valid Task Id before creation
 - Prevent duplicate task creation by checking existing RedmineID
 - Subtasks inherit dates/custom fields from parent task data
+
+## 
